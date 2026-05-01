@@ -1,0 +1,48 @@
+import type {ImageSourcePropType} from 'react-native';
+
+declare const require: (path: string) => ImageSourcePropType;
+
+export const images = {
+  loader: require('./loader-background.png'),
+  brandLeaf: require('./brand-leaf.png'),
+  onboardingTrack: require('./onboarding-track.png'),
+  onboardingCare: require('./onboarding-care.png'),
+  onboardingLearn: require('./onboarding-learn.png'),
+  pestAnts: require('./pest-ants.png'),
+  pestBroadMites: require('./pest-broad-mites.png'),
+  pestCabbageWorms: require('./pest-cabbage-worms.png'),
+  pestCaterpillars: require('./pest-caterpillars.png'),
+  pestColoradoPotatoBeetles: require('./pest-colorado-potato-beetles.png'),
+  pestCutworms: require('./pest-cutworms.png'),
+  pestEarwigs: require('./pest-earwigs.png'),
+  pestFleaBeetles: require('./pest-flea-beetles.png'),
+  pestFungusGnats: require('./pest-fungus-gnats.png'),
+  pestJapaneseBeetles: require('./pest-japanese-beetles.png'),
+  pestLeafFootedBugs: require('./pest-leaf-footed-bugs.png'),
+  pestLeafMiners: require('./pest-leaf-miners.png'),
+  pestLeafhoppers: require('./pest-leafhoppers.png'),
+  pestMealybugs: require('./pest-mealybugs.png'),
+  pestOnionThrips: require('./pest-onion-thrips.png'),
+  pestPillBugs: require('./pest-pill-bugs.png'),
+  pestRootKnotNematodes: require('./pest-root-knot-nematodes.png'),
+  pestScaleInsects: require('./pest-scale-insects.png'),
+  pestSlugsAndSnails: require('./pest-slugs-and-snails.png'),
+  pestSpiderMites: require('./pest-spider-mites.png'),
+  pestSpringtails: require('./pest-springtails.png'),
+  pestSquashBugs: require('./pest-squash-bugs.png'),
+  pestThrips: require('./pest-thrips.png'),
+  pestTomatoHornworms: require('./pest-tomato-hornworms.png'),
+  pestTwoSpottedSpiderMites: require('./pest-two-spotted-spider-mites.png'),
+  pestWhiteflies: require('./pest-whiteflies.png'),
+  virtualPlant30: require('./virtual-plant-30.png'),
+  virtualPlant35a: require('./virtual-plant-35-a.png'),
+  virtualPlant35b: require('./virtual-plant-35-b.png'),
+  virtualPlant40a: require('./virtual-plant-40-a.png'),
+  virtualPlant40b: require('./virtual-plant-40-b.png'),
+  virtualPlant50: require('./virtual-plant-50.png'),
+  virtualPlant55: require('./virtual-plant-55.png'),
+  virtualPlant60: require('./virtual-plant-60.png'),
+  virtualPlant80: require('./virtual-plant-80.png'),
+};
+
+export type ImageKey = keyof typeof images;
