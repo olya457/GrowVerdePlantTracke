@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import {images, type ImageKey} from '../assets/images';
 import {Button, Card, Chip, EmptyState, Field, Header, IconButton, Page} from '../components/ui';
@@ -235,13 +236,18 @@ function PlantDetailScreen({
   onTabChange: (tab: TabKey) => void;
 }): React.JSX.Element {
   const count = plant.daysGrowing ?? daysSince(plant.plantedAt);
+  const {width} = useWindowDimensions();
+  const horizontalPadding = width < 360 ? 16 : 20;
 
   return (
     <Page
       activeTab={activeTab}
       contentStyle={styles.detailContent}
       onTabChange={onTabChange}>
-      <ImageBackground source={images[plant.imageKey]} style={styles.hero} imageStyle={styles.heroImage}>
+      <ImageBackground
+        source={images[plant.imageKey]}
+        style={[styles.hero, {marginHorizontal: -horizontalPadding}]}
+        imageStyle={styles.heroImage}>
         <View style={styles.heroShade} />
         <View style={styles.heroTop}>
           <IconButton icon="‹" onPress={onBack} />
@@ -531,9 +537,9 @@ const styles = StyleSheet.create({
     paddingTop: 0,
   },
   hero: {
-    height: 228 + platformTopInset,
+    height: 246 + platformTopInset,
     marginHorizontal: -20,
-    paddingTop: platformTopInset,
+    paddingTop: platformTopInset + 18,
     justifyContent: 'space-between',
   },
   heroImage: {

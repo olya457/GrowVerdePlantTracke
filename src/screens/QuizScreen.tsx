@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
+import {Image, Pressable, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import {images} from '../assets/images';
 import {Button, Card, Header, IconButton, Page} from '../components/ui';
 import {quizQuestions} from '../data/content';
@@ -35,6 +35,8 @@ export function QuizScreen({
   const score = answers.filter(answer => answer.correct).length * 15;
   const current = questions[index];
   const correctCount = answers.filter(answer => answer.correct).length;
+  const {height, width} = useWindowDimensions();
+  const compact = height < 740 || width < 360;
 
   useEffect(() => {
     if (phase !== 'active' || selected !== null) {
@@ -102,6 +104,14 @@ export function QuizScreen({
         answers={answers}
         current={current}
         index={index}
+        onBack={() => {
+          setQuestions([]);
+          setIndex(0);
+          setSelected(null);
+          setAnswers([]);
+          setTimeLeft(20);
+          setPhase('home');
+        }}
         onChoose={choose}
         onNext={next}
         onPause={() => setPhase('paused')}
@@ -139,7 +149,11 @@ export function QuizScreen({
     <Page activeTab={activeTab} onTabChange={onTabChange}>
       <Header eyebrow="Test Yourself" title="Garden Quiz" />
       <View style={styles.homeHero}>
-        <Image resizeMode="contain" source={images.brandLeaf} style={styles.leaf} />
+        <Image
+          resizeMode="contain"
+          source={images.brandLeaf}
+          style={[styles.leaf, compact && styles.leafCompact]}
+        />
         <Text style={styles.homeTitle}>Gardening Knowledge</Text>
         <View style={styles.homeStats}>
           <QuizStat icon="?" label="Questions" value="10" />
@@ -169,6 +183,7 @@ function ActiveQuiz({
   answers,
   onChoose,
   onNext,
+  onBack,
   onPause,
 }: {
   current: QuizQuestion;
@@ -180,6 +195,7 @@ function ActiveQuiz({
   answers: AnswerRecord[];
   onChoose: (answerIndex: number) => void;
   onNext: () => void;
+  onBack: () => void;
   onPause: () => void;
 }): React.JSX.Element {
   const progress = `${((index + 1) / questions.length) * 100}%` as `${number}%`;
@@ -191,7 +207,8 @@ function ActiveQuiz({
   return (
     <Page>
       <View style={styles.quizHeader}>
-        <View>
+        <IconButton icon="‹" onPress={onBack} />
+        <View style={styles.quizHeaderText}>
           <Text style={styles.quizMeta}>Question {index + 1} of {questions.length}</Text>
           <Text style={styles.scoreText}>Score: {score} pts</Text>
         </View>
@@ -392,6 +409,11 @@ const styles = StyleSheet.create({
     height: 180,
     marginTop: 8,
   },
+  leafCompact: {
+    width: 172,
+    height: 138,
+    marginTop: 0,
+  },
   homeTitle: {
     color: colors.text,
     fontSize: 20,
@@ -451,9 +473,12 @@ const styles = StyleSheet.create({
   },
   quizHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 12,
     marginBottom: 14,
+  },
+  quizHeaderText: {
+    flex: 1,
   },
   quizMeta: {
     color: colors.green,

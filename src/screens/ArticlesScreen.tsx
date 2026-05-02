@@ -127,7 +127,7 @@ function ArticleCard({
         <Chip label={article.tag} />
         <Pressable onPress={onToggleSaved} style={styles.bookmarkHit}>
           <Text style={[styles.bookmark, isSaved && styles.bookmarkSaved]}>
-            {isSaved ? '🔖' : '▯'}
+            🔖
           </Text>
         </Pressable>
       </View>
@@ -165,12 +165,14 @@ function ArticleDetail({
     <Page>
       <View style={styles.detailTop}>
         <IconButton icon="‹" onPress={onBack} />
+        <View style={styles.detailChipWrap}>
+          <Chip label={article.tag} />
+        </View>
         <View style={styles.detailActions}>
           <IconButton icon="↗" onPress={onShare} />
-          <IconButton active={isSaved} icon={isSaved ? '🔖' : '▯'} onPress={onToggleSaved} />
+          <IconButton active={isSaved} icon="🔖" onPress={onToggleSaved} />
         </View>
       </View>
-      <Chip label={article.tag} />
       <Text style={styles.detailTitle}>{article.title}</Text>
       <View style={styles.tags}>
         {article.tags.map(item => (
@@ -225,9 +227,11 @@ const styles = StyleSheet.create({
   bookmark: {
     color: colors.muted,
     fontSize: 22,
+    opacity: 0.38,
   },
   bookmarkSaved: {
     color: colors.green,
+    opacity: 1,
   },
   cardTitle: {
     color: colors.text,
@@ -251,7 +255,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 22,
+    gap: 10,
+    marginTop: 14,
+    marginBottom: 30,
+  },
+  detailChipWrap: {
+    flex: 1,
+    alignItems: 'flex-start',
   },
   detailActions: {
     flexDirection: 'row',
@@ -262,7 +272,6 @@ const styles = StyleSheet.create({
     fontSize: 27,
     lineHeight: 34,
     fontWeight: '900',
-    marginTop: 18,
   },
   tags: {
     flexDirection: 'row',

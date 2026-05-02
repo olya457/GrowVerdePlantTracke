@@ -13,6 +13,7 @@ import {
   TextStyle,
   View,
   ViewStyle,
+  useWindowDimensions,
 } from 'react-native';
 import {images} from '../assets/images';
 import {colors, navContentBottom, platformTopInset, radius} from '../theme';
@@ -34,9 +35,17 @@ export function Page({
   scroll = true,
   contentStyle,
 }: PageProps): React.JSX.Element {
+  const {height, width} = useWindowDimensions();
+  const compact = height < 740 || width < 360;
+  const topPadding = platformTopInset + (compact ? 10 : 18);
+  const horizontalPadding = width < 360 ? 16 : 20;
   const content = [
     styles.pageContent,
-    {paddingBottom: activeTab ? navContentBottom : 30},
+    {
+      paddingTop: topPadding,
+      paddingHorizontal: horizontalPadding,
+      paddingBottom: activeTab ? navContentBottom : 30,
+    },
     contentStyle,
   ];
 
@@ -68,11 +77,17 @@ type HeaderProps = {
 };
 
 export function Header({eyebrow, title, right}: HeaderProps): React.JSX.Element {
+  const {width} = useWindowDimensions();
+  const compact = width < 360;
+
   return (
     <View style={styles.header}>
       <View style={styles.headerText}>
         <Text style={styles.eyebrow}>{eyebrow}</Text>
-        <Text adjustsFontSizeToFit numberOfLines={2} style={styles.title}>
+        <Text
+          adjustsFontSizeToFit
+          numberOfLines={2}
+          style={[styles.title, compact && styles.titleCompact]}>
           {title}
         </Text>
       </View>
@@ -280,8 +295,6 @@ const styles = StyleSheet.create({
   },
   pageContent: {
     minHeight: '100%',
-    paddingTop: platformTopInset,
-    paddingHorizontal: 20,
   },
   header: {
     flexDirection: 'row',
@@ -306,6 +319,10 @@ const styles = StyleSheet.create({
     fontSize: 29,
     lineHeight: 34,
     fontWeight: '800',
+  },
+  titleCompact: {
+    fontSize: 26,
+    lineHeight: 31,
   },
   button: {
     minHeight: 48,

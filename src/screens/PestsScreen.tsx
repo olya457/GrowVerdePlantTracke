@@ -1,5 +1,13 @@
 import React, {useState} from 'react';
-import {Image, ImageBackground, Share, StyleSheet, Text, View} from 'react-native';
+import {
+  Image,
+  ImageBackground,
+  Share,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import {images} from '../assets/images';
 import {Card, Chip, Header, IconButton, Page} from '../components/ui';
 import {pests} from '../data/content';
@@ -13,6 +21,8 @@ type Props = {
 
 export function PestsScreen({activeTab, onTabChange}: Props): React.JSX.Element {
   const [selected, setSelected] = useState<Pest | null>(null);
+  const {width} = useWindowDimensions();
+  const cardWidth = Math.floor((width - 56) / 2);
 
   if (selected) {
     return (
@@ -35,11 +45,16 @@ export function PestsScreen({activeTab, onTabChange}: Props): React.JSX.Element 
       <Text style={styles.subtitle}>Identify and protect your plants</Text>
       <View style={styles.grid}>
         {pests.map(pest => (
-          <Card key={pest.id} onPress={() => setSelected(pest)} style={styles.pestCard}>
-            <View style={styles.pestImageWrap}>
+          <Card
+            key={pest.id}
+            onPress={() => setSelected(pest)}
+            style={[styles.pestCard, {width: cardWidth}]}>
+            <View style={[styles.pestImageWrap, {height: cardWidth * 0.78}]}>
               <Image source={images[pest.imageKey]} style={styles.pestImage} />
               <View style={[styles.riskBadge, {backgroundColor: riskColor(pest.risk)}]}>
-                <Text style={styles.riskText}>{pest.risk.replace(' Risk', '')}</Text>
+                <Text numberOfLines={1} style={styles.riskText}>
+                  {pest.risk.replace(' Risk', '')}
+                </Text>
               </View>
             </View>
             <View style={styles.pestText}>
@@ -66,12 +81,15 @@ function PestDetail({
   onBack: () => void;
   onShare: () => void;
 }): React.JSX.Element {
+  const {width} = useWindowDimensions();
+  const horizontalPadding = width < 360 ? 16 : 20;
+
   return (
     <Page contentStyle={styles.detailContent}>
       <ImageBackground
         imageStyle={styles.heroImage}
         source={images[pest.imageKey]}
-        style={styles.hero}>
+        style={[styles.hero, {marginHorizontal: -horizontalPadding}]}>
         <View style={styles.heroShade} />
         <View style={styles.heroControls}>
           <Chip label={`⚠ ${pest.risk}`} tone={riskTone(pest.risk)} />
@@ -166,10 +184,10 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 16,
+    justifyContent: 'space-between',
+    rowGap: 16,
   },
   pestCard: {
-    width: '47%',
     overflow: 'hidden',
   },
   pestImageWrap: {
@@ -185,6 +203,7 @@ const styles = StyleSheet.create({
     top: 9,
     right: 9,
     borderRadius: 14,
+    minWidth: 62,
     paddingHorizontal: 10,
     height: 28,
     alignItems: 'center',
@@ -194,6 +213,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 11,
     fontWeight: '900',
+    textAlign: 'center',
   },
   pestText: {
     padding: 13,
@@ -214,9 +234,9 @@ const styles = StyleSheet.create({
     paddingTop: 0,
   },
   hero: {
-    height: 300 + platformTopInset,
+    height: 318 + platformTopInset,
     marginHorizontal: -20,
-    paddingTop: platformTopInset + 14,
+    paddingTop: platformTopInset + 24,
     justifyContent: 'space-between',
     borderBottomLeftRadius: radius.xl,
     borderBottomRightRadius: radius.xl,
