@@ -30,3 +30,7 @@ jest.mock('react-native-webview', () => {
     WebView: ({source, originWhitelist, ...props}) => React.createElement(View, props),
   };
 });
+
+jest.mock('react-native-image-picker', () => ({
+  launchImageLibrary: jest.fn(() => Promise.resolve({didCancel: true})),
+}));

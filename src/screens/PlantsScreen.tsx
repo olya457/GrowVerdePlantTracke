@@ -1,16 +1,24 @@
 import React, {useMemo, useState} from 'react';
 import {
+  Alert,
   Image,
   ImageBackground,
+  ImageSourcePropType,
   Modal,
+  PermissionsAndroid,
+  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
+  type ViewStyle,
   useWindowDimensions,
 } from 'react-native';
+import {launchImageLibrary} from 'react-native-image-picker';
 import {images, type ImageKey} from '../assets/images';
-import {Button, Card, Chip, EmptyState, Field, Header, IconButton, Page} from '../components/ui';
+import {Button, Card, Chip, EmptyState, Header, IconButton, Page} from '../components/ui';
 import {actionTypes, defaultPlants} from '../data/content';
 import {colors, platformTopInset, radius} from '../theme';
 import type {ActionType, AppData, CareAction, Plant, TabKey} from '../types';
@@ -22,6 +30,17 @@ type Props = {
   activeTab: TabKey;
   onTabChange: (tab: TabKey) => void;
 };
+
+type AddPlantFieldKey = 'name' | 'species' | 'date' | 'description';
+
+type CareActionFieldKey = 'date' | 'note';
+
+type TextSelection = {
+  start: number;
+  end: number;
+};
+
+type KeyboardMode = 'letters' | 'numbers';
 
 const plantImageKeys: ImageKey[] = [
   'onboardingCare',
@@ -38,6 +57,42 @@ const actionIcons: Record<ActionType, string> = {
   Harvested: '🧺',
   Observed: '📅',
 };
+
+const letterRows = [
+  ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
+  ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
+  ['z', 'x', 'c', 'v', 'b', 'n', 'm'],
+];
+
+const numberRows = [
+  ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
+  ['.', '/', '-', ',', ':', ';', '(', ')'],
+  ['@', '#', '&', "'", '"', '+', '!'],
+];
+
+function plantSource(plant: Plant): ImageSourcePropType {
+  return plant.photoUri ? {uri: plant.photoUri} : images[plant.imageKey];
+}
+
+async function requestGalleryPermission(): Promise<boolean> {
+  if (Platform.OS !== 'android') {
+    return true;
+  }
+
+  const permission =
+    Number(Platform.Version) >= 33
+      ? 'android.permission.READ_MEDIA_IMAGES'
+      : PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE;
+
+  const result = await PermissionsAndroid.request(permission, {
+    title: 'Photo library access',
+    message: 'Grow Verde needs access to your gallery to add plant photos.',
+    buttonPositive: 'Allow',
+    buttonNegative: 'Cancel',
+  });
+
+  return result === PermissionsAndroid.RESULTS.GRANTED;
+}
 
 export function PlantsScreen({
   data,
@@ -104,6 +159,16 @@ export function PlantsScreen({
     setMode('list');
   };
 
+  const showStandardPlants = () => {
+    updateData(current => ({
+      ...current,
+      hasCreatedPlant: false,
+      plants: [],
+    }));
+    setSelectedId(null);
+    setMode('list');
+  };
+
   if (mode === 'add') {
     return (
       <AddPlantScreen
@@ -165,10 +230,19 @@ export function PlantsScreen({
       ) : null}
 
       {shownPlants.length === 0 ? (
-        <EmptyState
-          text="Add a plant to start saving planting dates, notes, and care actions."
-          title="Your garden is empty"
-        />
+        <View style={styles.emptyPlants}>
+          <EmptyState
+            text="Add a plant to start saving planting dates, notes, and care actions."
+            title="Your garden is empty"
+          />
+          <Button
+            icon="↺"
+            label="Show Standard Plants"
+            onPress={showStandardPlants}
+            style={styles.standardPlantsButton}
+            variant="soft"
+          />
+        </View>
       ) : (
         <View style={styles.list}>
           {shownPlants.map(plant => (
@@ -198,7 +272,7 @@ function PlantRow({
 
   return (
     <Card onPress={onPress} style={styles.plantRow}>
-      <Image source={images[plant.imageKey]} style={styles.plantThumb} />
+      <Image source={plantSource(plant)} style={styles.plantThumb} />
       <View style={styles.plantInfo}>
         <Text numberOfLines={1} style={styles.plantName}>
           {plant.name}
@@ -245,7 +319,7 @@ function PlantDetailScreen({
       contentStyle={styles.detailContent}
       onTabChange={onTabChange}>
       <ImageBackground
-        source={images[plant.imageKey]}
+        source={plantSource(plant)}
         style={[styles.hero, {marginHorizontal: -horizontalPadding}]}
         imageStyle={styles.heroImage}>
         <View style={styles.heroShade} />
@@ -350,9 +424,126 @@ function AddPlantScreen({
   const [species, setSpecies] = useState('');
   const [date, setDate] = useState(formatDmy(new Date()));
   const [description, setDescription] = useState('');
+  const [photoUri, setPhotoUri] = useState<string | undefined>();
+  const [activeField, setActiveField] = useState<AddPlantFieldKey>('name');
+  const [keyboardMode, setKeyboardMode] = useState<KeyboardMode>('letters');
+  const [capsEnabled, setCapsEnabled] = useState(true);
+  const [selections, setSelections] = useState<Record<AddPlantFieldKey, TextSelection>>({
+    name: {start: 0, end: 0},
+    species: {start: 0, end: 0},
+    date: {start: date.length, end: date.length},
+    description: {start: 0, end: 0},
+  });
   const imageKey = useMemo(() => plantImageKeys[count % plantImageKeys.length], [count]);
 
   const canSave = name.trim().length > 1;
+  const fieldOrder: AddPlantFieldKey[] = ['name', 'species', 'date', 'description'];
+  const fieldValues: Record<AddPlantFieldKey, string> = {
+    name,
+    species,
+    date,
+    description,
+  };
+  const fieldSetters: Record<AddPlantFieldKey, (value: string) => void> = {
+    name: setName,
+    species: setSpecies,
+    date: setDate,
+    description: setDescription,
+  };
+
+  const activateField = (field: AddPlantFieldKey) => {
+    const value = fieldValues[field];
+
+    setActiveField(field);
+    setKeyboardMode(field === 'date' ? 'numbers' : 'letters');
+    setCapsEnabled(value.length === 0);
+    setSelections(current => {
+      const selection = current[field];
+      if (selection.start !== 0 || selection.end !== 0 || value.length === 0) {
+        return current;
+      }
+      return {...current, [field]: {start: value.length, end: value.length}};
+    });
+  };
+
+  const updateFieldSelection = (field: AddPlantFieldKey, selection: TextSelection) => {
+    setSelections(current => ({...current, [field]: selection}));
+  };
+
+  const updateActiveField = (nextValue: string, cursor: number) => {
+    const selection = {start: cursor, end: cursor};
+
+    fieldSetters[activeField](nextValue);
+    setSelections(current => ({...current, [activeField]: selection}));
+  };
+
+  const insertKeyboardText = (text: string) => {
+    const value = fieldValues[activeField];
+    const selection = selections[activeField];
+    const start = Math.min(selection.start, value.length);
+    const end = Math.min(selection.end, value.length);
+    const insertAt = Math.min(start, end);
+    const removeUntil = Math.max(start, end);
+    const nextValue = `${value.slice(0, insertAt)}${text}${value.slice(removeUntil)}`;
+
+    updateActiveField(nextValue, insertAt + text.length);
+  };
+
+  const removeKeyboardText = () => {
+    const value = fieldValues[activeField];
+    const selection = selections[activeField];
+    const start = Math.min(selection.start, value.length);
+    const end = Math.min(selection.end, value.length);
+
+    if (start !== end) {
+      const insertAt = Math.min(start, end);
+      const removeUntil = Math.max(start, end);
+      updateActiveField(`${value.slice(0, insertAt)}${value.slice(removeUntil)}`, insertAt);
+      return;
+    }
+
+    if (start === 0) {
+      return;
+    }
+
+    updateActiveField(`${value.slice(0, start - 1)}${value.slice(start)}`, start - 1);
+  };
+
+  const clearActiveField = () => {
+    updateActiveField('', 0);
+    setCapsEnabled(true);
+  };
+
+  const moveToNextField = () => {
+    const index = fieldOrder.indexOf(activeField);
+    activateField(fieldOrder[(index + 1) % fieldOrder.length]);
+  };
+
+  const pickPhoto = async () => {
+    const allowed = await requestGalleryPermission();
+
+    if (!allowed) {
+      Alert.alert('Gallery access needed', 'Allow photo access to choose a plant image.');
+      return;
+    }
+
+    const result = await launchImageLibrary({
+      mediaType: 'photo',
+      selectionLimit: 1,
+      quality: 0.8,
+    });
+
+    if (result.didCancel) {
+      return;
+    }
+
+    const uri = result.assets?.[0]?.uri;
+    if (uri) {
+      setPhotoUri(uri);
+    } else if (result.errorMessage) {
+      Alert.alert('Photo picker error', result.errorMessage);
+    }
+  };
 
   return (
     <Page activeTab={activeTab} onTabChange={onTabChange}>
@@ -362,23 +553,82 @@ function AddPlantScreen({
       </View>
 
       <Text style={styles.sectionLabel}>Choose Photo</Text>
-      <View style={styles.photoBox}>
-        <Image source={images[imageKey]} style={styles.photoPreview} />
+      <Pressable onPress={pickPhoto} style={styles.photoBox}>
+        <Image source={photoUri ? {uri: photoUri} : images[imageKey]} style={styles.photoPreview} />
         <View style={styles.photoOverlay}>
           <Text style={styles.photoIcon}>📷</Text>
-          <Text style={styles.photoText}>Tap to add photo</Text>
+          <Text style={styles.photoText}>
+            {photoUri ? 'Tap to change photo' : 'Tap to add photo'}
+          </Text>
         </View>
-      </View>
+      </Pressable>
 
-      <Field label="Plant Name *" onChangeText={setName} placeholder="e.g. Cherry Tomato" value={name} />
-      <Field label="Species" onChangeText={setSpecies} placeholder="e.g. Solanum lycopersicum" value={species} />
-      <Field label="Date Planted" onChangeText={setDate} placeholder="30.04.2026" value={date} />
-      <Field
+      <CustomKeyboardField
+        active={activeField === 'name'}
+        id="name"
+        label="Plant Name *"
+        onActivate={activateField}
+        onChangeText={setName}
+        onSelectionChange={updateFieldSelection}
+        placeholder="e.g. Cherry Tomato"
+        selection={selections.name}
+        value={name}
+      />
+      <CustomKeyboardField
+        active={activeField === 'species'}
+        id="species"
+        label="Species"
+        onActivate={activateField}
+        onChangeText={setSpecies}
+        onSelectionChange={updateFieldSelection}
+        placeholder="e.g. Solanum lycopersicum"
+        selection={selections.species}
+        value={species}
+      />
+      <CustomKeyboardField
+        active={activeField === 'date'}
+        id="date"
+        label="Date Planted"
+        onActivate={activateField}
+        onChangeText={setDate}
+        onSelectionChange={updateFieldSelection}
+        placeholder="30.04.2026"
+        selection={selections.date}
+        value={date}
+      />
+      <CustomKeyboardField
+        active={activeField === 'description'}
+        id="description"
         label="Description"
         multiline
+        onActivate={activateField}
         onChangeText={setDescription}
+        onSelectionChange={updateFieldSelection}
         placeholder="Describe your plant, where it is growing, any special notes"
+        selection={selections.description}
         value={description}
+      />
+      <CompactCustomKeyboard
+        canLineBreak={activeField === 'description'}
+        capsEnabled={capsEnabled}
+        mode={keyboardMode}
+        onBackspace={removeKeyboardText}
+        onClear={clearActiveField}
+        onEnter={() => insertKeyboardText('\n')}
+        onInput={text => {
+          if (keyboardMode === 'letters' && text.length === 1 && /[a-z]/.test(text)) {
+            insertKeyboardText(capsEnabled ? text.toUpperCase() : text);
+            if (capsEnabled) {
+              setCapsEnabled(false);
+            }
+            return;
+          }
+          insertKeyboardText(text);
+        }}
+        onModeChange={setKeyboardMode}
+        onNext={moveToNextField}
+        onSpace={() => insertKeyboardText(' ')}
+        onToggleCaps={() => setCapsEnabled(current => !current)}
       />
       <Button
         disabled={!canSave}
@@ -393,11 +643,189 @@ function AddPlantScreen({
               description.trim() ||
               'A new plant in your garden. Add notes over time to track growth, care actions, and changes.',
             imageKey,
+            photoUri,
             actions: [],
           })
         }
       />
     </Page>
+  );
+}
+
+function CustomKeyboardField<FieldKey extends string>({
+  id,
+  label,
+  value,
+  placeholder,
+  multiline,
+  active,
+  selection,
+  onActivate,
+  onChangeText,
+  onSelectionChange,
+}: {
+  id: FieldKey;
+  label: string;
+  value: string;
+  placeholder?: string;
+  multiline?: boolean;
+  active: boolean;
+  selection: TextSelection;
+  onActivate: (field: FieldKey) => void;
+  onChangeText: (text: string) => void;
+  onSelectionChange: (field: FieldKey, selection: TextSelection) => void;
+}): React.JSX.Element {
+  return (
+    <View style={styles.fieldWrap}>
+      <Text style={[styles.customFieldLabel, active && styles.customFieldLabelActive]}>
+        {label}
+      </Text>
+      <TextInput
+        contextMenuHidden
+        multiline={multiline}
+        onChangeText={onChangeText}
+        onFocus={() => onActivate(id)}
+        onPressIn={() => onActivate(id)}
+        onSelectionChange={event => onSelectionChange(id, event.nativeEvent.selection)}
+        placeholder={placeholder}
+        placeholderTextColor={colors.dim}
+        selection={active ? selection : undefined}
+        showSoftInputOnFocus={false}
+        style={[
+          styles.customInput,
+          multiline && styles.customTextArea,
+          active && styles.customInputActive,
+        ]}
+        value={value}
+      />
+    </View>
+  );
+}
+
+function CompactCustomKeyboard({
+  mode,
+  capsEnabled,
+  canLineBreak,
+  compact,
+  onInput,
+  onBackspace,
+  onSpace,
+  onEnter,
+  onNext,
+  onClear,
+  onModeChange,
+  onToggleCaps,
+}: {
+  mode: KeyboardMode;
+  capsEnabled: boolean;
+  canLineBreak: boolean;
+  compact?: boolean;
+  onInput: (text: string) => void;
+  onBackspace: () => void;
+  onSpace: () => void;
+  onEnter: () => void;
+  onNext: () => void;
+  onClear: () => void;
+  onModeChange: (mode: KeyboardMode) => void;
+  onToggleCaps: () => void;
+}): React.JSX.Element {
+  const rows = mode === 'letters' ? letterRows : numberRows;
+
+  return (
+    <View style={[styles.keyboard, compact && styles.keyboardCompact]}>
+      <View style={[styles.keyboardModeRow, compact && styles.keyboardModeRowCompact]}>
+        <KeyboardKey
+          active={mode === 'letters'}
+          compact={compact}
+          label="ABC"
+          onPress={() => onModeChange('letters')}
+          style={styles.modeKey}
+        />
+        <KeyboardKey
+          active={mode === 'numbers'}
+          compact={compact}
+          label="123"
+          onPress={() => onModeChange('numbers')}
+          style={styles.modeKey}
+        />
+        <KeyboardKey compact={compact} label="Clear" onPress={onClear} style={styles.clearKey} />
+      </View>
+
+      {rows.map((row, rowIndex) => (
+        <View
+          key={`${mode}-${rowIndex}`}
+          style={[
+            styles.keyboardRow,
+            compact && styles.keyboardRowCompact,
+            rowIndex === 1 && styles.keyboardRowInset,
+            compact && rowIndex === 1 && styles.keyboardRowInsetCompact,
+          ]}>
+          {row.map(key => (
+            <KeyboardKey
+              compact={compact}
+              key={key}
+              label={mode === 'letters' && capsEnabled ? key.toUpperCase() : key}
+              onPress={() => onInput(key)}
+            />
+          ))}
+        </View>
+      ))}
+
+      <View style={[styles.keyboardActionRow, compact && styles.keyboardActionRowCompact]}>
+        <KeyboardKey
+          active={capsEnabled}
+          compact={compact}
+          label="⇧"
+          onPress={onToggleCaps}
+          style={styles.utilityKey}
+        />
+        <KeyboardKey compact={compact} label="Space" onPress={onSpace} style={styles.spaceKey} />
+        <KeyboardKey
+          compact={compact}
+          label={canLineBreak ? '↵' : 'Next'}
+          onPress={canLineBreak ? onEnter : onNext}
+          style={styles.utilityKey}
+        />
+        <KeyboardKey compact={compact} label="⌫" onPress={onBackspace} style={styles.utilityKey} />
+      </View>
+    </View>
+  );
+}
+
+function KeyboardKey({
+  label,
+  onPress,
+  active,
+  compact,
+  style,
+}: {
+  label: string;
+  onPress: () => void;
+  active?: boolean;
+  compact?: boolean;
+  style?: ViewStyle;
+}): React.JSX.Element {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({pressed}) => [
+        styles.keyboardKey,
+        compact && styles.keyboardKeyCompact,
+        active && styles.keyboardKeyActive,
+        pressed && styles.pressed,
+        style,
+      ]}>
+      <Text
+        adjustsFontSizeToFit
+        numberOfLines={1}
+        style={[
+          styles.keyboardKeyText,
+          compact && styles.keyboardKeyTextCompact,
+          active && styles.keyboardKeyTextActive,
+        ]}>
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -413,6 +841,90 @@ function CareActionModal({
   const [type, setType] = useState<ActionType>('Watered');
   const [date, setDate] = useState(formatDmy(new Date()));
   const [note, setNote] = useState('');
+  const [activeField, setActiveField] = useState<CareActionFieldKey>('date');
+  const [keyboardMode, setKeyboardMode] = useState<KeyboardMode>('numbers');
+  const [capsEnabled, setCapsEnabled] = useState(false);
+  const [selections, setSelections] = useState<Record<CareActionFieldKey, TextSelection>>({
+    date: {start: date.length, end: date.length},
+    note: {start: 0, end: 0},
+  });
+  const fieldOrder: CareActionFieldKey[] = ['date', 'note'];
+  const fieldValues: Record<CareActionFieldKey, string> = {
+    date,
+    note,
+  };
+  const fieldSetters: Record<CareActionFieldKey, (value: string) => void> = {
+    date: setDate,
+    note: setNote,
+  };
+
+  const activateField = (field: CareActionFieldKey) => {
+    const value = fieldValues[field];
+
+    setActiveField(field);
+    setKeyboardMode(field === 'date' ? 'numbers' : 'letters');
+    setCapsEnabled(field !== 'date' && value.length === 0);
+    setSelections(current => {
+      const selection = current[field];
+      if (selection.start !== 0 || selection.end !== 0 || value.length === 0) {
+        return current;
+      }
+      return {...current, [field]: {start: value.length, end: value.length}};
+    });
+  };
+
+  const updateFieldSelection = (field: CareActionFieldKey, selection: TextSelection) => {
+    setSelections(current => ({...current, [field]: selection}));
+  };
+
+  const updateActiveField = (nextValue: string, cursor: number) => {
+    const selection = {start: cursor, end: cursor};
+
+    fieldSetters[activeField](nextValue);
+    setSelections(current => ({...current, [activeField]: selection}));
+  };
+
+  const insertKeyboardText = (text: string) => {
+    const value = fieldValues[activeField];
+    const selection = selections[activeField];
+    const start = Math.min(selection.start, value.length);
+    const end = Math.min(selection.end, value.length);
+    const insertAt = Math.min(start, end);
+    const removeUntil = Math.max(start, end);
+    const nextValue = `${value.slice(0, insertAt)}${text}${value.slice(removeUntil)}`;
+
+    updateActiveField(nextValue, insertAt + text.length);
+  };
+
+  const removeKeyboardText = () => {
+    const value = fieldValues[activeField];
+    const selection = selections[activeField];
+    const start = Math.min(selection.start, value.length);
+    const end = Math.min(selection.end, value.length);
+
+    if (start !== end) {
+      const insertAt = Math.min(start, end);
+      const removeUntil = Math.max(start, end);
+      updateActiveField(`${value.slice(0, insertAt)}${value.slice(removeUntil)}`, insertAt);
+      return;
+    }
+
+    if (start === 0) {
+      return;
+    }
+
+    updateActiveField(`${value.slice(0, start - 1)}${value.slice(start)}`, start - 1);
+  };
+
+  const clearActiveField = () => {
+    updateActiveField('', 0);
+    setCapsEnabled(activeField === 'note');
+  };
+
+  const moveToNextField = () => {
+    const index = fieldOrder.indexOf(activeField);
+    activateField(fieldOrder[(index + 1) % fieldOrder.length]);
+  };
 
   return (
     <Modal animationType="slide" onRequestClose={onClose} transparent visible={visible}>
@@ -422,36 +934,80 @@ function CareActionModal({
           <Text style={styles.sheetTitle}>Log Care Action</Text>
           <IconButton icon="×" onPress={onClose} />
         </View>
-        <View style={styles.actionChips}>
-          {actionTypes.map(item => (
-            <Chip
-              active={item === type}
-              key={item}
-              label={item}
-              onPress={() => setType(item)}
-              tone={item === 'Watered' ? 'blue' : item === 'Fertilized' ? 'yellow' : 'green'}
-            />
-          ))}
-        </View>
-        <Field label="Date" onChangeText={setDate} placeholder="30.04.2026" value={date} />
-        <Field
-          label="Notes"
-          multiline
-          onChangeText={setNote}
-          placeholder="Add notes (optional)"
-          value={note}
-        />
-        <Button
-          label="Log Action"
-          onPress={() =>
-            onSave({
-              id: uid('action'),
-              type,
-              date: date.trim() || formatDmy(new Date()),
-              note: note.trim(),
-            })
-          }
-        />
+        <ScrollView
+          contentContainerStyle={styles.sheetBody}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          style={styles.sheetScroll}>
+          <View style={styles.actionChips}>
+            {actionTypes.map(item => (
+              <Chip
+                active={item === type}
+                key={item}
+                label={item}
+                onPress={() => setType(item)}
+                tone={item === 'Watered' ? 'blue' : item === 'Fertilized' ? 'yellow' : 'green'}
+              />
+            ))}
+          </View>
+          <CustomKeyboardField
+            active={activeField === 'date'}
+            id="date"
+            label="Date"
+            onActivate={activateField}
+            onChangeText={setDate}
+            onSelectionChange={updateFieldSelection}
+            placeholder="30.04.2026"
+            selection={selections.date}
+            value={date}
+          />
+          <CustomKeyboardField
+            active={activeField === 'note'}
+            id="note"
+            label="Notes"
+            multiline
+            onActivate={activateField}
+            onChangeText={setNote}
+            onSelectionChange={updateFieldSelection}
+            placeholder="Add notes (optional)"
+            selection={selections.note}
+            value={note}
+          />
+          <CompactCustomKeyboard
+            compact
+            canLineBreak={activeField === 'note'}
+            capsEnabled={capsEnabled}
+            mode={keyboardMode}
+            onBackspace={removeKeyboardText}
+            onClear={clearActiveField}
+            onEnter={() => insertKeyboardText('\n')}
+            onInput={text => {
+              if (keyboardMode === 'letters' && text.length === 1 && /[a-z]/.test(text)) {
+                insertKeyboardText(capsEnabled ? text.toUpperCase() : text);
+                if (capsEnabled) {
+                  setCapsEnabled(false);
+                }
+                return;
+              }
+              insertKeyboardText(text);
+            }}
+            onModeChange={setKeyboardMode}
+            onNext={moveToNextField}
+            onSpace={() => insertKeyboardText(' ')}
+            onToggleCaps={() => setCapsEnabled(current => !current)}
+          />
+          <Button
+            label="Log Action"
+            onPress={() =>
+              onSave({
+                id: uid('action'),
+                type,
+                date: date.trim() || formatDmy(new Date()),
+                note: note.trim(),
+              })
+            }
+          />
+        </ScrollView>
       </View>
     </Modal>
   );
@@ -479,8 +1035,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '700',
   },
+  pressed: {
+    opacity: 0.78,
+  },
   list: {
     gap: 14,
+  },
+  emptyPlants: {
+    alignItems: 'center',
+  },
+  standardPlantsButton: {
+    alignSelf: 'center',
+    marginTop: -56,
+    minWidth: 230,
   },
   plantRow: {
     minHeight: 104,
@@ -685,6 +1252,127 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '900',
   },
+  fieldWrap: {
+    marginBottom: 14,
+  },
+  customFieldLabel: {
+    color: colors.muted,
+    fontSize: 12,
+    textTransform: 'uppercase',
+    fontWeight: '900',
+    marginBottom: 7,
+  },
+  customFieldLabelActive: {
+    color: colors.green,
+  },
+  customInput: {
+    minHeight: 48,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.panel,
+    color: colors.text,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  customInputActive: {
+    borderColor: colors.green,
+    backgroundColor: colors.panelStrong,
+  },
+  customTextArea: {
+    minHeight: 92,
+    textAlignVertical: 'top',
+  },
+  keyboard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: '#09170c',
+    padding: 8,
+    gap: 7,
+    marginBottom: 16,
+  },
+  keyboardCompact: {
+    borderRadius: 13,
+    padding: 6,
+    gap: 5,
+    marginBottom: 14,
+  },
+  keyboardModeRow: {
+    flexDirection: 'row',
+    gap: 7,
+  },
+  keyboardModeRowCompact: {
+    gap: 5,
+  },
+  keyboardRow: {
+    flexDirection: 'row',
+    gap: 5,
+  },
+  keyboardRowCompact: {
+    gap: 4,
+  },
+  keyboardRowInset: {
+    paddingHorizontal: 12,
+  },
+  keyboardRowInsetCompact: {
+    paddingHorizontal: 8,
+  },
+  keyboardActionRow: {
+    flexDirection: 'row',
+    gap: 7,
+  },
+  keyboardActionRowCompact: {
+    gap: 5,
+  },
+  keyboardKey: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 34,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.panelSoft,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    paddingHorizontal: 4,
+  },
+  keyboardKeyCompact: {
+    minHeight: 27,
+    borderRadius: 8,
+    paddingHorizontal: 3,
+  },
+  keyboardKeyActive: {
+    backgroundColor: colors.green,
+    borderColor: colors.green,
+  },
+  keyboardKeyText: {
+    color: colors.text,
+    fontSize: 14,
+    lineHeight: 16,
+    fontWeight: '900',
+  },
+  keyboardKeyTextCompact: {
+    fontSize: 12,
+    lineHeight: 14,
+  },
+  keyboardKeyTextActive: {
+    color: colors.black,
+  },
+  modeKey: {
+    flex: 0.8,
+  },
+  clearKey: {
+    flex: 1.1,
+  },
+  utilityKey: {
+    flex: 0.75,
+  },
+  spaceKey: {
+    flex: 2,
+  },
   photoBox: {
     height: 96,
     borderRadius: radius.md,
@@ -723,6 +1411,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    maxHeight: '92%',
     borderTopLeftRadius: 26,
     borderTopRightRadius: 26,
     backgroundColor: colors.panel,
@@ -731,6 +1420,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 34,
+  },
+  sheetBody: {
+    paddingBottom: 2,
+  },
+  sheetScroll: {
+    flexShrink: 1,
   },
   sheetHeader: {
     flexDirection: 'row',

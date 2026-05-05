@@ -25,6 +25,7 @@ export type Plant = {
   daysGrowing?: number;
   description: string;
   imageKey: ImageKey;
+  photoUri?: string;
   actions: CareAction[];
 };
 

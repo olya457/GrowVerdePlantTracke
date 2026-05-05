@@ -175,11 +175,6 @@ function GardenSlotCard({
       <Image resizeMode="contain" source={images[plant.imageKey]} style={styles.virtualPlant} />
       <StatusBarLine icon="💧" value={slot.water} />
       <StatusBarLine icon="⚡" value={slot.food} />
-      <View style={styles.slotTools}>
-        <Text style={styles.slotTool}>💧</Text>
-        <Text style={styles.slotTool}>⚡</Text>
-        <Text style={styles.slotTool}>↻</Text>
-      </View>
     </Pressable>
   );
 }
@@ -259,9 +254,12 @@ function PlantControlsModal({
 
   return (
     <Modal animationType="fade" onRequestClose={onClose} transparent visible={Boolean(slot)}>
-      <Pressable onPress={onClose} style={styles.modalBackdrop} />
+      <View style={styles.modalBackdrop} />
       {slot && plant ? (
         <View style={styles.controlCard}>
+          <Pressable onPress={onClose} style={styles.controlClose}>
+            <Text style={styles.controlCloseText}>×</Text>
+          </Pressable>
           <Image resizeMode="contain" source={images[plant.imageKey]} style={styles.controlImage} />
           <Text style={styles.controlTitle}>{plant.name}</Text>
           <StatusBarLine icon="💧" value={slot.water} />
@@ -415,15 +413,6 @@ const styles = StyleSheet.create({
     width: 24,
     textAlign: 'right',
   },
-  slotTools: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 8,
-  },
-  slotTool: {
-    color: colors.green,
-    fontSize: 14,
-  },
   tipCard: {
     padding: 16,
     marginTop: 22,
@@ -535,6 +524,26 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     backgroundColor: colors.panel,
     padding: 20,
+  },
+  controlClose: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    zIndex: 2,
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.panelSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  controlCloseText: {
+    color: colors.text,
+    fontSize: 25,
+    lineHeight: 28,
+    fontWeight: '800',
   },
   controlImage: {
     height: 130,
