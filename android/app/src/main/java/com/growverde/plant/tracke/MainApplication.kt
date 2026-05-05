@@ -1,4 +1,4 @@
-package com.growverdeplanttracke
+package com.growverde.plant.tracke
 
 import android.app.Application
 import com.facebook.react.PackageList
