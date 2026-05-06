@@ -1,7 +1,7 @@
 import React, {useMemo, useState} from 'react';
-import {Image, Modal, Pressable, StyleSheet, Text, View} from 'react-native';
+import {Image, Modal, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {images} from '../assets/images';
-import {Button, Card, Header, Page} from '../components/ui';
+import {Button, Header, Page} from '../components/ui';
 import {gardenAreas, virtualPlants} from '../data/content';
 import {colors} from '../theme';
 import type {AppData, GardenSlot, TabKey, VirtualPlant} from '../types';
@@ -117,18 +117,6 @@ export function GardenScreen({
           })}
         </View>
 
-        <Card style={styles.tipCard}>
-          <Text style={styles.tipTitle}>💡 Garden Tips</Text>
-          <Text style={styles.tipText}>
-            Earn points by completing the Quiz. Use points to unlock new plants.
-            Keep your status bars green for a thriving garden.
-          </Text>
-          <View style={styles.tipActions}>
-            <Text style={styles.tipAction}>💧 Water plant</Text>
-            <Text style={styles.tipAction}>⚡ Fertilize</Text>
-            <Text style={styles.tipAction}>↻ Replace</Text>
-          </View>
-        </Card>
       </Page>
 
       <ShopModal
@@ -215,7 +203,13 @@ function ShopModal({
             <Text style={styles.closeText}>×</Text>
           </Pressable>
         </View>
-        <View style={styles.shopGrid}>
+        <ScrollView
+          bounces
+          contentContainerStyle={styles.shopGrid}
+          nestedScrollEnabled
+          scrollEnabled
+          style={styles.shopScroll}
+          showsVerticalScrollIndicator={false}>
           {virtualPlants.map(plant => {
             const canBuy = balance >= plant.price;
             return (
@@ -231,7 +225,7 @@ function ShopModal({
               </Pressable>
             );
           })}
-        </View>
+        </ScrollView>
       </View>
     </Modal>
   );
@@ -413,31 +407,6 @@ const styles = StyleSheet.create({
     width: 24,
     textAlign: 'right',
   },
-  tipCard: {
-    padding: 16,
-    marginTop: 22,
-  },
-  tipTitle: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: '900',
-  },
-  tipText: {
-    color: colors.muted,
-    fontSize: 14,
-    lineHeight: 22,
-    marginTop: 10,
-  },
-  tipActions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginTop: 14,
-  },
-  tipAction: {
-    color: colors.muted,
-    fontSize: 12,
-  },
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.72)',
@@ -447,7 +416,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    maxHeight: '76%',
+    height: '76%',
     borderTopLeftRadius: 26,
     borderTopRightRadius: 26,
     borderTopWidth: 1,
@@ -479,10 +448,14 @@ const styles = StyleSheet.create({
     fontSize: 34,
     lineHeight: 36,
   },
+  shopScroll: {
+    flex: 1,
+  },
   shopGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
+    paddingBottom: 90,
   },
   shopItem: {
     width: '47%',
