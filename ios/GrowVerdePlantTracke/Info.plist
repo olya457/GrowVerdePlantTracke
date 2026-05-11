@@ -31,8 +31,6 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string></string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Grow Verde needs access to your photo library so you can add plant photos.</string>
 	<key>UILaunchStoryboardName</key>
