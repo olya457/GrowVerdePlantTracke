@@ -1,4 +1,4 @@
-package com.growverde.plant.tracke
+package com.plantcaretracker
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
